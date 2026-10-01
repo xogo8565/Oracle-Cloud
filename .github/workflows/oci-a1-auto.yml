@@ -26,6 +26,7 @@ jobs:
       OCI_REGION: ap-osaka-1
       OCI_AVAILABILITY_DOMAIN: ZgAv:AP-OSAKA-1-AD-1
       OCI_SUBNET_OCID: ${{ vars.OCI_SUBNET_OCID }}
+      OCI_IMAGE_OCID: ${{ vars.OCI_IMAGE_OCID }}
       OCI_SSH_PUBLIC_KEY: >-
         ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDP94k9dT6Q/uY+URYz3rJjKVB7jVoHsq7awaQ16xI/mNV7HAYUC0PuNivqsQpAxSUC96Y77ZFXcdS4wslSHg806xlcbgi94N/H+qvg6ohwSdCEvC+muyKSLiLRdytLJg8OG4VQ7gqKCM0WzvTY4C8RvzDFU7ATJ+C7dXIduBq32VtF/DMug/wi6qkmTylaL+e+Cd7DAHmXnFq2Qitn3UqXOoF9CHOfqsIY0kvfoMJ/va621JUPP/nhOciDDfHfIBK3LZNJv9F+4F0E7/HEzhvfLCriyVGw/rmMhNYpqDi9Ew5yBa1TKyhOhP350nyAnJeXLXlTWWa2vBsuVlKeEqmr ssh-key-2026-06-26
       OCI_INSTANCE_NAME: oci-a1-always-free
@@ -73,18 +74,22 @@ jobs:
             exit 0
           fi
 
-          echo 'No matching instance found. Resolving the latest available Canonical Ubuntu 24.04 Minimal aarch64 image.'
-          images_json="$(oci compute image list \
-            --compartment-id "$OCI_COMPARTMENT_OCID" \
-            --region "$OCI_REGION" \
-            --shape VM.Standard.A1.Flex \
-            --operating-system 'Ubuntu' \
-            --operating-system-version '24.04' \
-            --lifecycle-state AVAILABLE \
-            --all --output json)"
-          image_ocid="$(jq -r '[.data[] | select((.["display-name"] | ascii_downcase | gsub("[-_]"; " ")) | contains("canonical ubuntu 24.04 minimal aarch64"))] | sort_by(.["time-created"]) | last | .id // empty' <<< "$images_json")"
+          image_ocid="${OCI_IMAGE_OCID:-}"
+          if [[ -z "$image_ocid" ]]; then
+            echo 'No matching instance found. Resolving the latest available Canonical Ubuntu 24.04 Minimal aarch64 image.'
+            images_json="$(oci compute image list \
+              --compartment-id "$OCI_COMPARTMENT_OCID" \
+              --region "$OCI_REGION" \
+              --shape VM.Standard.A1.Flex \
+              --lifecycle-state AVAILABLE \
+              --all --output json)"
+            image_ocid="$(jq -r '[.data[] | select((.["display-name"] | ascii_downcase | gsub("[-_]"; " ")) | contains("canonical ubuntu 24.04 minimal aarch64"))] | sort_by(.["time-created"]) | last | .id // empty' <<< "$images_json")"
+          fi
           if [[ -z "$image_ocid" ]]; then
             echo 'No matching Ubuntu 24.04 Minimal aarch64 image was found in this region.'
+            echo 'Available A1-compatible image names returned by OCI:'
+            jq -r '.data[]? | .["display-name"]' <<< "$images_json" | head -n 30
+            echo 'Set the OCI_IMAGE_OCID repository variable to an image OCID to bypass automatic image discovery.'
             exit 1
           fi
 

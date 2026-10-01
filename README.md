@@ -22,6 +22,9 @@
 | 이름 | 값 |
 | --- | --- |
 | `OCI_SUBNET_OCID` | 사용할 VCN 서브넷 OCID |
+| `OCI_IMAGE_OCID` | 선택 사항. 자동 이미지 검색 대신 고정 이미지 OCID를 사용하려면 설정 |
+
+이미지 OCID를 지정하지 않으면 워크플로가 A1 호환 이미지 목록에서 `Canonical-Ubuntu-24.04-Minimal-aarch64` 이름에 맞는 최신 이미지를 찾습니다. 자동 검색이 실패하면 Actions 로그에 OCI가 반환한 후보 이미지 이름이 표시됩니다. 이 경우 대상 리전의 올바른 이미지 OCID를 `OCI_IMAGE_OCID` 변수로 등록할 수 있습니다.
 
 전달받은 tenancy OCID는 루트 컴파트먼트 OCID로도 사용하도록 워크플로에 설정했습니다. 하위 컴파트먼트를 사용하려는 경우 워크플로의 `OCI_COMPARTMENT_OCID`를 해당 컴파트먼트 OCID로 변경하세요. 리전 `ap-osaka-1`, 가용성 도메인 `ZgAv:AP-OSAKA-1-AD-1`, 그리고 전달받은 인스턴스 로그인 공개 키도 워크플로에 설정되어 있습니다.
 
