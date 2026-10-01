@@ -2,7 +2,7 @@
 
 이 저장소의 GitHub Actions 워크플로는 10분마다 `ap-osaka-1`의 지정 컴파트먼트에서 `oci-a1-always-free` 인스턴스가 이미 존재하는지 확인합니다. 인스턴스가 없으면 Canonical Ubuntu 24.04 Minimal aarch64 이미지를 조회해 A1.Flex 인스턴스 생성을 시도합니다. 용량 부족 등 생성 실패는 해당 실행을 실패 처리하므로 다음 예약 실행에서 다시 시도합니다.
 
-동일한 GitHub Actions 동시성 그룹을 사용하고, 조회 시 `TERMINATED` 이외의 모든 상태를 기존 인스턴스로 취급합니다. 실행 중인 인스턴스가 확인되면 새로 만들지 않습니다. 인스턴스 이름은 `oci-a1-always-free`이며, 설정은 1 OCPU, 6 GB 메모리, 50 GB 부트 볼륨입니다.
+동일한 GitHub Actions 동시성 그룹을 사용하고, 지정 컴파트먼트와 리전에서 `TERMINATED`가 아닌 A1.Flex 인스턴스가 하나라도 확인되면 새로 만들지 않습니다. 생성하는 인스턴스 이름은 `oci-a1-always-free`이며, 설정은 1 OCPU, 6 GB 메모리, 50 GB 부트 볼륨입니다.
 
 ## GitHub Actions 설정
 

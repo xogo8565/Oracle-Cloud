@@ -66,10 +66,10 @@ jobs:
             --compartment-id "$OCI_COMPARTMENT_OCID" \
             --region "$OCI_REGION" \
             --all --output json)"
-          existing_count="$(jq --arg name "$OCI_INSTANCE_NAME" '[.data[] | select(.["display-name"] == $name and .["lifecycle-state"] != "TERMINATED")] | length' <<< "$instances_json")"
+          existing_count="$(jq '[.data[] | select(.shape == "VM.Standard.A1.Flex" and .["lifecycle-state"] != "TERMINATED")] | length' <<< "$instances_json")"
 
           if [[ "$existing_count" -gt 0 ]]; then
-            echo "An instance named $OCI_INSTANCE_NAME already exists; nothing to do."
+            echo 'An active VM.Standard.A1.Flex instance already exists in the target compartment and region; nothing to do.'
             exit 0
           fi
 
