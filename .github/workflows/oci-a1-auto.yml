@@ -17,15 +17,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      OCI_TENANCY_OCID: ocid1.tenancy.oc1..aaaaaaaa5bjlzl5rsqyb6xxgfnbinnnxo3idyu5iqrl5ihci2lgll7imv3nq
+      OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
       OCI_USER_OCID: ${{ secrets.OCI_USER_OCID }}
       OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
       OCI_API_PRIVATE_KEY_PEM: ${{ secrets.OCI_API_PRIVATE_KEY_PEM }}
       OCI_API_KEY_PASSPHRASE: ${{ secrets.OCI_API_KEY_PASSPHRASE }}
-      OCI_COMPARTMENT_OCID: ocid1.tenancy.oc1..aaaaaaaa5bjlzl5rsqyb6xxgfnbinnnxo3idyu5iqrl5ihci2lgll7imv3nq
+      # 별도 컴파트먼트를 쓰지 않으면 tenancy(루트 컴파트먼트)를 사용
+      OCI_COMPARTMENT_OCID: ${{ secrets.OCI_COMPARTMENT_OCID || secrets.OCI_TENANCY_OCID }}
       OCI_REGION: ap-osaka-1
       OCI_AVAILABILITY_DOMAIN: ZgAv:AP-OSAKA-1-AD-1
-      OCI_SUBNET_OCID: ${{ vars.OCI_SUBNET_OCID }}
+      OCI_SUBNET_OCID: ${{ secrets.OCI_SUBNET_OCID || vars.OCI_SUBNET_OCID }}
       OCI_IMAGE_OCID: ${{ vars.OCI_IMAGE_OCID }}
       OCI_SSH_PUBLIC_KEY: >-
         ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDP94k9dT6Q/uY+URYz3rJjKVB7jVoHsq7awaQ16xI/mNV7HAYUC0PuNivqsQpAxSUC96Y77ZFXcdS4wslSHg806xlcbgi94N/H+qvg6ohwSdCEvC+muyKSLiLRdytLJg8OG4VQ7gqKCM0WzvTY4C8RvzDFU7ATJ+C7dXIduBq32VtF/DMug/wi6qkmTylaL+e+Cd7DAHmXnFq2Qitn3UqXOoF9CHOfqsIY0kvfoMJ/va621JUPP/nhOciDDfHfIBK3LZNJv9F+4F0E7/HEzhvfLCriyVGw/rmMhNYpqDi9Ew5yBa1TKyhOhP350nyAnJeXLXlTWWa2vBsuVlKeEqmr ssh-key-2026-06-26
@@ -39,7 +40,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          for name in OCI_USER_OCID OCI_FINGERPRINT OCI_API_PRIVATE_KEY_PEM OCI_SUBNET_OCID; do
+          for name in OCI_TENANCY_OCID OCI_COMPARTMENT_OCID OCI_USER_OCID OCI_FINGERPRINT OCI_API_PRIVATE_KEY_PEM OCI_SUBNET_OCID; do
             if [[ -z "${!name:-}" ]]; then
               echo "::notice title=OCI automation not configured::Set the required GitHub secrets and variables; skipped this run (missing ${name})."
               exit 0
@@ -73,7 +74,7 @@ jobs:
             echo 'OCI returned no subnet compartment OCID; verify OCI_SUBNET_OCID and OCI_REGION.'
             exit 1
           fi
-          echo "Subnet is visible in the target region. Ensure the launch user's network policy covers subnet compartment $subnet_compartment_ocid."
+          echo 'Subnet is visible in the target region.'
 
           instances_json="$(oci compute instance list \
             --compartment-id "$OCI_COMPARTMENT_OCID" \
@@ -109,7 +110,9 @@ jobs:
           chmod 600 "$RUNNER_TEMP/oci-authorized-keys"
 
           echo 'Launching VM.Standard.A1.Flex (1 OCPU, 6 GB RAM, 50 GB boot volume).'
-          oci compute instance launch \
+          launch_out="$RUNNER_TEMP/launch-out.json"
+          launch_err="$RUNNER_TEMP/launch-err.log"
+          if oci compute instance launch \
             --availability-domain "$OCI_AVAILABILITY_DOMAIN" \
             --compartment-id "$OCI_COMPARTMENT_OCID" \
             --subnet-id "$OCI_SUBNET_OCID" \
@@ -118,5 +121,20 @@ jobs:
             --shape-config '{"ocpus":1,"memoryInGBs":6}' \
             --image-id "$image_ocid" \
             --boot-volume-size-in-gbs 50 \
+            --assign-public-ip true \
             --ssh-authorized-keys-file "$RUNNER_TEMP/oci-authorized-keys" \
-            --region "$OCI_REGION"
+            --region "$OCI_REGION" \
+            --output json > "$launch_out" 2> "$launch_err"; then
+            state="$(jq -r '.data["lifecycle-state"] // "UNKNOWN"' "$launch_out")"
+            echo "::notice title=A1 instance launched::Launch request accepted (state: ${state}). Check the OCI console for the public IP."
+            exit 0
+          fi
+
+          # 실패 시 OCID·엔드포인트 등은 빼고 code/message만 출력
+          code="$(grep -o '"code": "[^"]*"' "$launch_err" | head -n1 | cut -d'"' -f4 || true)"
+          message="$(grep -o '"message": "[^"]*"' "$launch_err" | head -n1 | cut -d'"' -f4 || true)"
+          if [[ -z "$code" && -z "$message" ]]; then
+            message="$(head -c 300 "$launch_err" | sed -E 's/ocid1\.[a-z0-9.]+\.[a-z0-9_-]*\.\.[a-z0-9]+/<ocid>/g')"
+          fi
+          echo "::error title=A1 launch failed::${code:-UnknownError}: ${message}"
+          exit 1
