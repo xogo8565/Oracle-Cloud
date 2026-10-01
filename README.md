@@ -17,20 +17,15 @@
 | `OCI_API_PRIVATE_KEY_PEM` | 해당 API 서명 키의 PEM 개인 키 전체 내용 |
 | `OCI_API_KEY_PASSPHRASE` | 개인 키가 암호화된 경우에만 설정 |
 
-### Repository variables
+### Repository variable
 
 | 이름 | 값 |
 | --- | --- |
-| `OCI_TENANCY_OCID` | OCI tenancy OCID |
-| `OCI_COMPARTMENT_OCID` | 인스턴스를 생성하고 검색할 컴파트먼트 OCID |
-| `OCI_REGION` | `ap-osaka-1` |
-| `OCI_AVAILABILITY_DOMAIN` | `ZgAv:AP-OSAKA-1-AD-1` |
 | `OCI_SUBNET_OCID` | 사용할 VCN 서브넷 OCID |
-| `OCI_SSH_PUBLIC_KEY` | 인스턴스의 `authorized_keys`에 넣을 공개 키 한 줄 |
 
-사용자가 전달한 `ocid1.tenancy...` 값은 tenancy OCID입니다. tenancy 루트 컴파트먼트를 대상으로 하는 경우 이 값을 `OCI_TENANCY_OCID`와 `OCI_COMPARTMENT_OCID` 양쪽에 입력할 수 있습니다. 하위 컴파트먼트를 사용한다면 `OCI_COMPARTMENT_OCID`에는 해당 하위 컴파트먼트 OCID를 입력하세요.
+전달받은 tenancy OCID는 루트 컴파트먼트 OCID로도 사용하도록 워크플로에 설정했습니다. 하위 컴파트먼트를 사용하려는 경우 워크플로의 `OCI_COMPARTMENT_OCID`를 해당 컴파트먼트 OCID로 변경하세요. 리전 `ap-osaka-1`, 가용성 도메인 `ZgAv:AP-OSAKA-1-AD-1`, 그리고 전달받은 인스턴스 로그인 공개 키도 워크플로에 설정되어 있습니다.
 
-개인 키를 GitHub Actions secret에 저장하고, 저장소 파일이나 로그에 기록하지 마세요. 제공한 인스턴스 로그인 공개 키는 `OCI_SSH_PUBLIC_KEY` 변수에 저장합니다. GitHub 저장소 인증 키와 OCI 인스턴스 로그인 키의 용도를 혼동하지 마세요.
+개인 키를 GitHub Actions secret에 저장하고, 저장소 파일이나 로그에 기록하지 마세요. 워크플로에는 인스턴스 로그인 공개 키만 설정되어 있습니다. GitHub 저장소 인증 키와 OCI 인스턴스 로그인 키의 용도를 혼동하지 마세요.
 
 ## OCI 사용자 및 IAM 정책
 
