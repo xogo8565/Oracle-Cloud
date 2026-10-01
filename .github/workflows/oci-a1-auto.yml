@@ -63,6 +63,18 @@ jobs:
             printf 'pass_phrase=%s\n' "$OCI_API_KEY_PASSPHRASE" >> "$HOME/.oci/config"
           fi
 
+          echo 'Checking that the configured subnet exists and is accessible in the target region.'
+          subnet_json="$(oci network subnet get \
+            --subnet-id "$OCI_SUBNET_OCID" \
+            --region "$OCI_REGION" \
+            --output json)"
+          subnet_compartment_ocid="$(jq -r '.data["compartment-id"] // empty' <<< "$subnet_json")"
+          if [[ -z "$subnet_compartment_ocid" ]]; then
+            echo 'OCI returned no subnet compartment OCID; verify OCI_SUBNET_OCID and OCI_REGION.'
+            exit 1
+          fi
+          echo "Subnet is visible in the target region. Ensure the launch user's network policy covers subnet compartment $subnet_compartment_ocid."
+
           instances_json="$(oci compute instance list \
             --compartment-id "$OCI_COMPARTMENT_OCID" \
             --region "$OCI_REGION" \

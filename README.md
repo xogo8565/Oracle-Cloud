@@ -48,6 +48,8 @@ Allow group <group-name> to use virtual-network-family in compartment <network-c
 
 - `OCI_COMPARTMENT_OCID`가 실제 생성 대상 컴파트먼트인지 확인합니다. tenancy OCID는 루트 컴파트먼트에 사용할 수 있습니다.
 - `OCI_SUBNET_OCID`가 Osaka 리전의 대상 가용성 도메인에서 인스턴스 생성이 가능한 서브넷인지 확인합니다.
+- 인스턴스 생성에서 `NotAuthorizedOrNotFound`가 나오면 서브넷 OCID가 `ap-osaka-1`에 존재하는지, OCI 사용자 그룹 정책에 실제 서브넷이 속한 컴파트먼트의 `use virtual-network-family` 권한이 있는지 확인합니다. 워크플로 사전 조회가 서브넷을 보여주지 못하면 OCID/리전이 틀렸거나 서브넷 접근 권한이 부족할 수 있습니다.
+- OCI 사용자 그룹에는 대상 컴파트먼트의 `manage instance-family`와 tenancy의 `read app-catalog-listing`도 있어야 합니다. 사용자가 해당 그룹에 포함되어 있고 정책이 올바른 tenancy에 생성됐는지도 확인합니다.
 - 제공한 A1 구성은 1 OCPU / 6 GB입니다. Always Free A1 한도는 tenancy 전체 합계 2 OCPU / 12 GB이므로, 다른 A1 인스턴스 사용량도 합산해야 합니다.
 - OCI Always Free 컴퓨트는 tenancy의 홈 리전에서 생성해야 합니다. `ap-osaka-1`이 홈 리전인지 확인하세요.
 - 공개 IP는 서브넷 설정을 따릅니다. SSH 접근이 필요하면 공용 서브넷/인터넷 경로 및 보안 목록 또는 NSG의 SSH 규칙을 별도로 확인하세요.
