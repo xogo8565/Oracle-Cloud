@@ -42,8 +42,8 @@ jobs:
 
           for name in OCI_TENANCY_OCID OCI_COMPARTMENT_OCID OCI_USER_OCID OCI_FINGERPRINT OCI_API_PRIVATE_KEY_PEM OCI_SUBNET_OCID; do
             if [[ -z "${!name:-}" ]]; then
-              echo "::notice title=OCI automation not configured::Set the required GitHub secrets and variables; skipped this run (missing ${name})."
-              exit 0
+              echo "::error title=OCI automation not configured::Required GitHub secret or variable is missing: ${name}"
+              exit 1
             fi
           done
 
