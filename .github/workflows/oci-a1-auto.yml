@@ -1,0 +1,104 @@
+name: OCI A1 Always Free instance
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: oci-a1-auto-ap-osaka-1
+  cancel-in-progress: false
+
+jobs:
+  ensure-instance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      OCI_TENANCY_OCID: ${{ vars.OCI_TENANCY_OCID }}
+      OCI_USER_OCID: ${{ secrets.OCI_USER_OCID }}
+      OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
+      OCI_API_PRIVATE_KEY_PEM: ${{ secrets.OCI_API_PRIVATE_KEY_PEM }}
+      OCI_API_KEY_PASSPHRASE: ${{ secrets.OCI_API_KEY_PASSPHRASE }}
+      OCI_COMPARTMENT_OCID: ${{ vars.OCI_COMPARTMENT_OCID }}
+      OCI_REGION: ${{ vars.OCI_REGION }}
+      OCI_AVAILABILITY_DOMAIN: ${{ vars.OCI_AVAILABILITY_DOMAIN }}
+      OCI_SUBNET_OCID: ${{ vars.OCI_SUBNET_OCID }}
+      OCI_SSH_PUBLIC_KEY: ${{ vars.OCI_SSH_PUBLIC_KEY }}
+      OCI_INSTANCE_NAME: oci-a1-always-free
+    steps:
+      - name: Install OCI CLI
+        run: python3 -m pip install --disable-pip-version-check 'oci-cli==3.94.1'
+
+      - name: Check instance and create if absent
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for name in OCI_TENANCY_OCID OCI_USER_OCID OCI_FINGERPRINT OCI_API_PRIVATE_KEY_PEM OCI_COMPARTMENT_OCID OCI_REGION OCI_AVAILABILITY_DOMAIN OCI_SUBNET_OCID OCI_SSH_PUBLIC_KEY; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::notice title=OCI automation not configured::Set the required GitHub secrets and variables; skipped this run (missing ${name})."
+              exit 0
+            fi
+          done
+
+          mkdir -p "$HOME/.oci"
+          chmod 700 "$HOME/.oci"
+          printf '%s' "$OCI_API_PRIVATE_KEY_PEM" > "$HOME/.oci/oci_api_key.pem"
+          chmod 600 "$HOME/.oci/oci_api_key.pem"
+          {
+            printf '[DEFAULT]\n'
+            printf 'user=%s\n' "$OCI_USER_OCID"
+            printf 'fingerprint=%s\n' "$OCI_FINGERPRINT"
+            printf 'tenancy=%s\n' "$OCI_TENANCY_OCID"
+            printf 'region=%s\n' "$OCI_REGION"
+            printf 'key_file=%s\n' "$HOME/.oci/oci_api_key.pem"
+          } > "$HOME/.oci/config"
+          chmod 600 "$HOME/.oci/config"
+          if [[ -n "${OCI_API_KEY_PASSPHRASE:-}" ]]; then
+            printf 'pass_phrase=%s\n' "$OCI_API_KEY_PASSPHRASE" >> "$HOME/.oci/config"
+          fi
+
+          instances_json="$(oci compute instance list \
+            --compartment-id "$OCI_COMPARTMENT_OCID" \
+            --region "$OCI_REGION" \
+            --all --output json)"
+          existing_count="$(jq --arg name "$OCI_INSTANCE_NAME" '[.data[] | select(.["display-name"] == $name and .["lifecycle-state"] != "TERMINATED")] | length' <<< "$instances_json")"
+
+          if [[ "$existing_count" -gt 0 ]]; then
+            echo "An instance named $OCI_INSTANCE_NAME already exists; nothing to do."
+            exit 0
+          fi
+
+          echo 'No matching instance found. Resolving the latest available Canonical Ubuntu 24.04 Minimal aarch64 image.'
+          images_json="$(oci compute image list \
+            --compartment-id "$OCI_COMPARTMENT_OCID" \
+            --region "$OCI_REGION" \
+            --shape VM.Standard.A1.Flex \
+            --operating-system 'Ubuntu' \
+            --operating-system-version '24.04' \
+            --lifecycle-state AVAILABLE \
+            --all --output json)"
+          image_ocid="$(jq -r '[.data[] | select((.["display-name"] | ascii_downcase | gsub("[-_]"; " ")) | contains("canonical ubuntu 24.04 minimal aarch64"))] | sort_by(.["time-created"]) | last | .id // empty' <<< "$images_json")"
+          if [[ -z "$image_ocid" ]]; then
+            echo 'No matching Ubuntu 24.04 Minimal aarch64 image was found in this region.'
+            exit 1
+          fi
+
+          printf '%s\n' "$OCI_SSH_PUBLIC_KEY" > "$RUNNER_TEMP/oci-authorized-keys"
+          chmod 600 "$RUNNER_TEMP/oci-authorized-keys"
+
+          echo 'Launching VM.Standard.A1.Flex (1 OCPU, 6 GB RAM, 50 GB boot volume).'
+          oci compute instance launch \
+            --availability-domain "$OCI_AVAILABILITY_DOMAIN" \
+            --compartment-id "$OCI_COMPARTMENT_OCID" \
+            --subnet-id "$OCI_SUBNET_OCID" \
+            --display-name "$OCI_INSTANCE_NAME" \
+            --shape VM.Standard.A1.Flex \
+            --shape-config '{"ocpus":1,"memoryInGBs":6}' \
+            --image-id "$image_ocid" \
+            --boot-volume-size-in-gbs 50 \
+            --ssh-authorized-keys-file "$RUNNER_TEMP/oci-authorized-keys" \
+            --region "$OCI_REGION"
